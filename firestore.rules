@@ -1,0 +1,78 @@
+// ═══════════════════════════════════════════════════════════════
+// KASHMIR SINTHAN TOP — FIRESTORE SECURITY RULES
+// ═══════════════════════════════════════════════════════════════
+//
+// HOW TO DEPLOY:
+//   1. Go to Firebase Console → Firestore Database → Rules tab
+//   2. Replace everything with the rules below
+//   3. Click "Publish"
+//
+// OR via Firebase CLI:
+//   firebase deploy --only firestore:rules
+// ═══════════════════════════════════════════════════════════════
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helper functions ──────────────────────────────────────
+
+    // Is the request from a signed-in Firebase Auth user?
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Is the field a non-empty string?
+    function isNonEmptyString(val) {
+      return val is string && val.size() > 0;
+    }
+
+    // Is the value a valid integer >= 0?
+    function isPositiveInt(val) {
+      return val is int && val >= 0;
+    }
+
+    // Does the incoming data have all required tour fields?
+    function validTour() {
+      let d = request.resource.data;
+      return isNonEmptyString(d.name)
+          && d.keys().hasAll(['name'])
+          && (!d.keys().hasAny(['order']) || isPositiveInt(d.order));
+    }
+
+    // Does the incoming data have all required car fields?
+    function validCar() {
+      let d = request.resource.data;
+      return isNonEmptyString(d.name)
+          && d.keys().hasAll(['name'])
+          && (!d.keys().hasAny(['order']) || isPositiveInt(d.order));
+    }
+
+    // ── /tours collection ─────────────────────────────────────
+    // READ  → everyone (public website loads tours)
+    // WRITE → only authenticated admin users
+    match /tours/{tourId} {
+      allow read: if true;
+      allow create: if isSignedIn() && validTour();
+      allow update: if isSignedIn() && validTour();
+      allow delete: if isSignedIn();
+    }
+
+    // ── /cars collection ──────────────────────────────────────
+    // READ  → everyone (public website loads cars)
+    // WRITE → only authenticated admin users
+    match /cars/{carId} {
+      allow read: if true;
+      allow create: if isSignedIn() && validCar();
+      allow update: if isSignedIn() && validCar();
+      allow delete: if isSignedIn();
+    }
+
+    // ── Deny everything else ─────────────────────────────────
+    // Any collection not explicitly listed above is blocked.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+  }
+}
